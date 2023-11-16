@@ -1,0 +1,118 @@
+﻿@page "/producto/form/{idProducto:int?}"
+@inject NavigationManager NavigationManager
+@inject HttpClient httpClient
+
+<h1 class="display-1">Formulario 🛒</h1>
+
+<div class="border border-2 p-5 rounded-3">
+    <p class="lead">Por favor ingresa los datos del producto</p>
+
+    <form method="post" class="row gap-1 justify-content-center">
+        <div class="col-md-6 col-lg-4">
+            <label for="name">Nombre:</label>
+            <div class="input-group flex-nowrap">
+                <span class="input-group-text">⚡</span>
+                <input id="name" name="nombre" class="form-control" @bind="producto.Nombre" placeholder="Nombre" />
+            </div>
+        </div>
+
+        <div class="col-md-6 col-lg-4">
+            <label for="cost">Precio:</label>
+            <div class="input-group flex-nowrap">
+                <span class="input-group-text">💲</span>
+                <input id="cost" name="precio" class="form-control" type="number" @bind="producto.Precio" />
+            </div>
+        </div>
+
+        <div class="col-md-6 col-lg-4">
+            <label for="quantity">Cantidad:</label>
+            <div class="input-group flex-nowrap">
+                <span class="input-group-text">🧮</span>
+                <input id="quantity" name="cantidad" class="form-control" type="number" @bind="producto.Cantidad" />
+            </div>
+        </div>
+
+        <div class="col-md-6 col-lg-4">
+            <label for="category">Categoria:</label>
+            <div class="input-group flex-nowrap">
+                <span class="input-group-text">📟</span>
+                <select id="category" name="categoria" class="form-control" @bind="producto.IdCategoria.IdCategoria">
+                    <option value="">Selecciona una opcion</option>
+                    <option value="1">Refrescos</option>
+                    <option value="2">Botanas</option>
+                    <option value="3">Tecnologia</option>
+                </select>
+            </div>
+        </div>
+    </form>
+
+    <div class="text-center mt-3">
+        <a class="btn btn-outline-danger" href="producto">Volver</a>
+        <input type="submit" @onclick="() => FormProducto(producto)" class="btn btn-outline-primary" value="Submit" />
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public int? idProducto { get; set; }
+    private string text;
+
+    ML.Producto producto = new ML.Producto
+        {
+            IdCategoria = new ML.Categoria()
+        };
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (idProducto.HasValue)
+        {
+            await GetById();
+        }
+    }
+
+    void FormProducto(ML.Producto producto)
+    {
+        if (producto.IdProducto == 0)
+        {
+            using (var client = new HttpClient())
+            {
+                var postTask = client.PostAsJsonAsync("http://localhost:5288/api/Producto", producto);
+                postTask.Wait();
+
+                var resultService = postTask.Result;
+
+                if (resultService.IsSuccessStatusCode)
+                {
+                    NavigationManager.NavigateTo("producto");
+                    GetAll.RecibirTexto("Se ha agregado correctamente");
+                }
+            }
+        }
+        else
+        {
+            using (var client = new HttpClient())
+            {
+                var putTask = client.PutAsJsonAsync("http://localhost:5288/api/Producto", producto);
+                putTask.Wait();
+
+                var resultService = putTask.Result;
+
+                if (resultService.IsSuccessStatusCode)
+                {
+                    NavigationManager.NavigateTo("producto");
+                    GetAll.RecibirTexto("Se ha actualizado correctamente");
+                }
+            }
+        }
+    }
+
+    private async Task GetById()
+    {
+        var responseTask = await httpClient.GetFromJsonAsync<ML.Producto>($"http://localhost:5288/api/Producto/byId/{idProducto}");
+
+        if (responseTask != null)
+        {
+            producto = responseTask;
+        }
+    }
+}

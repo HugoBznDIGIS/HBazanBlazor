@@ -1,0 +1,183 @@
+﻿@page "/producto"
+@using Newtonsoft.Json.Linq
+
+<h1 class="display-1">Productos 🎁</h1>
+
+<div class="my-3">
+    <a href="producto/form" class="btn btn-outline-primary">Agregar</a>
+</div>
+
+@if (text != "")
+{
+    <div class="alert alert-success alert-dismissible">
+        <strong>@(text)!</strong>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" @onclick="() => LimpiarTexto()"></button>
+    </div>
+}
+
+<div class="container border border-2 p-5 rounded-3">
+    <div class="col-md-6 col-lg-4 d-flex gap-3 py-3">
+        <input type="text" @bind="busqueda" @ref="inputBuscador" class="form-control" />
+        <button @onclick="BuscarProductos" class="btn btn-outline-primary">Buscar</button>
+        <button @onclick="LimpiarBuscador" class="btn btn-outline-warning">Limpiar</button>
+    </div>
+
+    <table class="table table-dark table-hover table-bordered">
+        <thead>
+            <tr>
+                <th>Nombre</th>
+                <th>Precio</th>
+                <th>Cantidad</th>
+                <th>Categoria</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody class="table-secondary">
+            @foreach (ML.Producto itemProducto in productosPaginados)
+            {
+                <tr>
+                    <td>@itemProducto.Nombre</td>
+                    <td>@itemProducto.Precio</td>
+                    <td>@itemProducto.Cantidad</td>
+                    <td>@itemProducto.IdCategoria.Nombre</td>
+                    <td class="text-center">
+                        <a href="producto/form/@(itemProducto.IdProducto)" class="btn btn-outline-info">Editar</a>
+                        <a @onclick="() => Delete(itemProducto.IdProducto)" class="btn btn-outline-danger">Eliminar</a>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <nav>
+        <ul class="pagination">
+            @for (int i = 1; i <= totalPaginas; i++)
+            {
+                int pagina = i;
+                <li class="page-item @(i == paginaActual ? "active" : "")">
+                    <a class="page-link" @onclick="() => CambiarPagina(pagina)">@i</a>
+                </li>
+            }
+        </ul>
+    </nav>
+</div>
+
+@code {
+    static string busqueda = "";
+    static string text = "";
+    List<ML.Producto> producto = new List<ML.Producto>();
+    List<ML.Producto> productosPaginados = new List<ML.Producto>();
+    private ElementReference inputBuscador;
+    int registrosPorPagina = 5;
+    int paginaActual = 1;
+    int totalPaginas = 1;
+
+    protected override void OnInitialized()
+    {
+        // Cargar la lista de productos al inicializar el componente
+        producto = GetAllProd("");
+        ActualizarProductosPaginados();
+    }
+
+    void BuscarProductos()
+    {
+        paginaActual = 1;
+        producto = GetAllProd(busqueda);
+        ActualizarProductosPaginados();
+    }
+
+    void LimpiarBuscador()
+    {
+        paginaActual = 1;
+        producto = GetAllProd("");
+        busqueda = "";
+        inputBuscador.FocusAsync();
+        ActualizarProductosPaginados();
+    }
+
+    void CambiarPagina(int nuevaPagina)
+    {
+        if (nuevaPagina >= 1 && nuevaPagina <= totalPaginas)
+        {
+            paginaActual = nuevaPagina;
+            ActualizarProductosPaginados();
+        }
+    }
+
+    void ActualizarProductosPaginados()
+    {
+        int indiceInicial = (paginaActual - 1) * registrosPorPagina;
+        productosPaginados = producto.Skip(indiceInicial).Take(registrosPorPagina).ToList();
+        totalPaginas = (int)Math.Ceiling((double)producto.Count / registrosPorPagina);
+    }
+
+    public List<ML.Producto> GetAllProd(string nombre)
+    {
+        ML.Producto producto = new ML.Producto();
+        List<ML.Producto> productos = new List<ML.Producto>();
+
+        using (var client = new HttpClient())
+        {
+            var responseTask = client.GetAsync($"http://localhost:5288/api/Producto/{nombre}");
+            responseTask.Wait();
+
+            var resultService = responseTask.Result;
+
+            if (resultService.IsSuccessStatusCode)
+            {
+                var readTask = resultService.Content.ReadAsStringAsync();
+                dynamic resultJSON = JArray.Parse(readTask.Result);
+                readTask.Wait();
+
+                foreach (var itemProd in resultJSON)
+                {
+                    ML.Producto itemProducto = new ML.Producto();
+
+                    itemProducto.IdProducto = itemProd.idProducto;
+                    itemProducto.Nombre = itemProd.nombre;
+                    itemProducto.Precio = itemProd.precio;
+                    itemProducto.Cantidad = itemProd.cantidad;
+
+                    itemProducto.IdCategoria = new ML.Categoria();
+                    itemProducto.IdCategoria.IdCategoria = itemProd.idCategoria.idCategoria;
+                    itemProducto.IdCategoria.Nombre = itemProd.idCategoria.nombre;
+
+                    productos.Add(itemProducto);
+                }
+            }
+        }
+        return productos;
+    }
+
+    public static void RecibirTexto(string textoRecibido)
+    {
+        text = textoRecibido;
+    }
+
+    void LimpiarTexto()
+    {
+        text = "";
+    }
+
+    void Delete(int idProducto)
+    {
+        using (var client = new HttpClient())
+        {
+            var responseTask = client.DeleteAsync($"http://localhost:5288/api/Producto/{idProducto}");
+            responseTask.Wait();
+
+            var resultService = responseTask.Result;
+
+            if (resultService.IsSuccessStatusCode)
+            {
+                text = "Se ha eliminado correctamente";
+                producto = GetAllProd(busqueda);
+                ActualizarProductosPaginados();
+            }
+            else
+            {
+                text = "Ha ocurrido un error";
+            }
+        }
+    }
+}
